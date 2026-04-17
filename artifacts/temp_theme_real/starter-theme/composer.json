@@ -1,0 +1,25 @@
+{
+    "name": "wp-multitenant/starter-theme",
+    "description": "Starter theme for WordPress Multitenancy Platform",
+    "type": "wordpress-theme",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.0"
+    },
+    "require-dev": {
+        "squizlabs/php_codesniffer": "^3.9",
+        "wp-coding-standards/wpcs": "^3.1",
+        "phpstan/phpstan": "^1.10",
+        "phpcompatibility/phpcompatibility-wp": "^2.1"
+    },
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        }
+    },
+    "scripts": {
+        "lint": "phpcs --standard=../../../.phpcs.xml.dist .",
+        "lint:fix": "phpcbf --standard=../../../.phpcs.xml.dist .",
+        "analyse": "phpstan analyse --level=5 ."
+    }
+}

@@ -117,7 +117,7 @@ services:
   #  MySQL Exporter — Tenant Alpha DB metrics
   # =============================================
   mysqld-exporter-alpha:
-    image: prom/mysqld-exporter:v0.15.1
+    image: prom/mysqld-exporter:v0.14.0
     container_name: wp-mysqld-exporter-alpha
     restart: unless-stopped
     environment:
@@ -133,7 +133,7 @@ services:
   #  MySQL Exporter — Tenant Beta DB metrics
   # =============================================
   mysqld-exporter-beta:
-    image: prom/mysqld-exporter:v0.15.1
+    image: prom/mysqld-exporter:v0.14.0
     container_name: wp-mysqld-exporter-beta
     restart: unless-stopped
     environment:

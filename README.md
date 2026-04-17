@@ -439,6 +439,32 @@ Runs on push to `main` or version tags (`v*`):
 | **Simulate Deploy** | Spins up Docker Compose, deploys artifacts, runs health checks |
 | **Create Release** | (Tag only) Creates GitHub release with attached zip artifacts |
 
+### Local Testing with `act`
+
+You can test these GitHub Actions locally on Windows using `act`:
+
+1. **Install `act`:**
+   ```powershell
+   winget install nektos.act
+   ```
+2. **Initialize Git (if not already a repo):**
+   The deployment scripts rely on `git rev-parse`, so the codebase must be recognized as a valid git repository.
+   ```powershell
+   git init
+   git add .
+   git commit -m "initial commit"
+   ```
+3. **Run CI Pipeline (Pull Request):**
+   ```powershell
+   act pull_request
+   ```
+4. **Run CD Pipeline (Push):**
+   Since the local runner lacks GitHub's native artifact storage, supply a local path to `--artifact-server-path` so the deploy job can download what the build job compiled.
+   ```powershell
+   act push --artifact-server-path artifacts
+   ```
+   > ⚠️ **Note:** `act` simulates actions locally. Complex jobs (like `docker compose` with multi-stack paths) might cause localized mounting errors that will not occur on actual native GitHub hosted runners. Always test final configurations on a live fork!
+
 ---
 
 ## Versioning & Rollback
