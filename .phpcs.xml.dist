@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<ruleset name="WordPress Multitenancy Platform">
+    <description>PHP Coding Standards for the WordPress Multitenancy Platform</description>
+
+    <!-- What to scan -->
+    <file>.</file>
+
+    <!-- Exclude paths -->
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    <exclude-pattern>*/node_modules/*</exclude-pattern>
+    <exclude-pattern>*/.git/*</exclude-pattern>
+
+    <!-- Use WordPress-Extra standard (includes Core + best practices) -->
+    <rule ref="WordPress-Extra">
+        <!-- Allow short array syntax -->
+        <exclude name="Universal.Arrays.DisallowShortArraySyntax"/>
+    </rule>
+
+    <!-- Additional WordPress VIP rules for security -->
+    <rule ref="WordPress.Security.EscapeOutput"/>
+    <rule ref="WordPress.Security.NonceVerification"/>
+    <rule ref="WordPress.Security.ValidatedSanitizedInput"/>
+
+    <!-- Check for PHP cross-version compatibility -->
+    <config name="testVersion" value="8.0-"/>
+
+    <!-- Show colors and progress -->
+    <arg name="colors"/>
+    <arg value="sp"/>
+
+    <!-- File extensions to check -->
+    <arg name="extensions" value="php"/>
+</ruleset>

@@ -1,0 +1,49 @@
+/*
+Theme Name: Starter Theme
+Theme URI: https://github.com/example/wp-multitenant-platform
+Author: DevOps Team
+Author URI: https://github.com/example
+Description: A minimal starter theme for the WordPress Multitenancy Platform. Used as a CI/CD artifact target.
+Version: 1.0.0
+License: GNU General Public License v2 or later
+License URI: http://www.gnu.org/licenses/gpl-2.0.html
+Text Domain: starter-theme
+Tags: starter, minimal, multitenant
+Requires at least: 6.0
+Tested up to: 6.5
+Requires PHP: 8.0
+*/
+
+/* ---- Base Styles ---- */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    color: #333;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+}
+
+.site-header {
+    background: #0073aa;
+    color: #fff;
+    padding: 1rem 2rem;
+}
+
+.site-header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.site-content {
+    max-width: 1200px;
+    margin: 2rem auto;
+    padding: 0 2rem;
+}
+
+.site-footer {
+    background: #23282d;
+    color: #ccc;
+    padding: 1rem 2rem;
+    text-align: center;
+    margin-top: 2rem;
+}

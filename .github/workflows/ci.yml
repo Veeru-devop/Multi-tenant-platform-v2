@@ -1,0 +1,138 @@
+# ==============================================================
+# CI Pipeline — Pull Request Checks
+# ==============================================================
+# Runs on every PR: PHP lint, WordPress coding standards, security
+# ==============================================================
+
+name: CI — Lint & Security Checks
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'wp-content/**'
+      - '.phpcs.xml.dist'
+      - '.github/workflows/ci.yml'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---- Job 1: PHP Syntax Lint ----
+  php-lint:
+    name: PHP Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: php-parallel-lint/php-parallel-lint
+
+      - name: Run PHP Lint
+        run: |
+          parallel-lint --exclude vendor --exclude node_modules wp-content/
+
+  # ---- Job 2: WordPress Coding Standards ----
+  phpcs:
+    name: WordPress Coding Standards
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: cs2pr, composer
+
+      - name: Install dependencies
+        working-directory: wp-content/themes/starter-theme
+        run: composer install --prefer-dist --no-progress
+
+      - name: Run PHPCS (Theme)
+        working-directory: wp-content/themes/starter-theme
+        run: |
+          ./vendor/bin/phpcs -q --standard=../../../.phpcs.xml.dist \
+            --report=checkstyle . | cs2pr
+
+      - name: Install plugin dependencies
+        working-directory: wp-content/plugins/starter-plugin
+        run: composer install --prefer-dist --no-progress
+
+      - name: Run PHPCS (Plugin)
+        working-directory: wp-content/plugins/starter-plugin
+        run: |
+          ./vendor/bin/phpcs -q --standard=../../../.phpcs.xml.dist \
+            --report=checkstyle . | cs2pr
+
+  # ---- Job 3: Security / Static Analysis ----
+  security-scan:
+    name: Security & Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer
+
+      - name: Install theme dependencies
+        working-directory: wp-content/themes/starter-theme
+        run: composer install --prefer-dist --no-progress
+
+      - name: Run PHPStan (Theme)
+        working-directory: wp-content/themes/starter-theme
+        run: ./vendor/bin/phpstan analyse --level=5 --no-progress . || true
+
+      - name: Check for known vulnerable dependencies
+        run: |
+          # Check composer.lock files for known vulnerabilities
+          for lockfile in $(find wp-content -name "composer.lock" -type f); do
+            echo "Checking: $lockfile"
+            dir=$(dirname "$lockfile")
+            cd "$dir"
+            composer audit --no-dev || true
+            cd "$GITHUB_WORKSPACE"
+          done
+
+      - name: Check for hardcoded secrets
+        run: |
+          # Simple grep for common secret patterns
+          echo "Scanning for potential hardcoded secrets..."
+          FOUND=0
+          grep -rn --include="*.php" -E "(password|secret|api_key|token)\s*=\s*['\"][^'\"]+['\"]" wp-content/ \
+            | grep -v "vendor/" \
+            | grep -v "change_me" \
+            | grep -v "example" \
+            | grep -v "ABSPATH" && FOUND=1 || true
+          if [ "$FOUND" = "1" ]; then
+            echo "⚠️  Potential hardcoded secrets found. Please review."
+          else
+            echo "✅ No hardcoded secrets detected."
+          fi
+
+  # ---- Job 4: Docker Compose Validation ----
+  docker-validate:
+    name: Docker Compose Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Copy env example
+        run: cp .env.example .env
+
+      - name: Validate Docker Compose (base)
+        run: docker compose config --quiet
+
+      - name: Validate Docker Compose (full stack)
+        run: docker compose -f docker-compose.yml -f docker-compose.monitoring.yml config --quiet

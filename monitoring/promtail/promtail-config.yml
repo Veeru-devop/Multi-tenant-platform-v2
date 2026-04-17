@@ -1,0 +1,64 @@
+# ==============================================================
+# Promtail Configuration — Log shipping to Loki
+# ==============================================================
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # ---- Docker container logs ----
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Keep only our project containers
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(wp-.*|db-.*|wp-nginx)'
+        action: keep
+      # Use container name as label
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+      # Extract tenant from container name
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(?:wp|db)-(alpha|beta)'
+        target_label: tenant
+      # Extract service type
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(wp)-.*'
+        target_label: service_type
+        replacement: wordpress
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(db)-.*'
+        target_label: service_type
+        replacement: database
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/wp-(nginx)'
+        target_label: service_type
+        replacement: proxy
+
+  # ---- Nginx access/error logs from shared volume ----
+  - job_name: nginx_logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx_file_logs
+          service_type: proxy
+          __path__: /var/log/nginx/*.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<remote_addr>[\w\.]+) - (?P<remote_user>\S+) \[(?P<time_local>[^\]]+)\] "(?P<request>[^"]*)" (?P<status>\d+) (?P<body_bytes_sent>\d+) "(?P<http_referer>[^"]*)" "(?P<http_user_agent>[^"]*)"'
+      - labels:
+          status:
+          remote_addr:
+      - timestamp:
+          source: time_local
+          format: "02/Jan/2006:15:04:05 -0700"

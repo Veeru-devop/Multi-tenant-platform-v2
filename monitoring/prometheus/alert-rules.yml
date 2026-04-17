@@ -1,0 +1,95 @@
+# ==============================================================
+# Prometheus Alert Rules
+# ==============================================================
+groups:
+  - name: wordpress_platform_alerts
+    rules:
+      # ----------------------------------------------------------------
+      # ALERT 1: Availability — WordPress container down
+      # ----------------------------------------------------------------
+      - alert: WordPressContainerDown
+        expr: |
+          absent(container_last_seen{name=~"wp-(alpha|beta)"})
+          or (time() - container_last_seen{name=~"wp-(alpha|beta)"}) > 60
+        for: 30s
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "WordPress container {{ $labels.name }} is down"
+          description: |
+            The WordPress container {{ $labels.name }} has not been seen
+            by cAdvisor for more than 60 seconds. Immediate action required.
+          runbook_url: "See RUNBOOK.md#wordpress-container-down"
+
+      # ----------------------------------------------------------------
+      # ALERT 2: Latency — Nginx high response time
+      # ----------------------------------------------------------------
+      - alert: NginxHighLatency
+        expr: |
+          rate(nginx_http_request_duration_seconds_sum[5m])
+          / rate(nginx_http_request_duration_seconds_count[5m]) > 2
+        for: 5m
+        labels:
+          severity: warning
+          category: latency
+        annotations:
+          summary: "Nginx average response time exceeds 2 seconds"
+          description: |
+            The average upstream response time through Nginx has exceeded
+            2 seconds for the last 5 minutes. This may indicate WordPress
+            performance degradation or database issues.
+          runbook_url: "See RUNBOOK.md#high-latency"
+
+      # ----------------------------------------------------------------
+      # ALERT 3: Database Health — MariaDB exporter down
+      # ----------------------------------------------------------------
+      - alert: MariaDBExporterDown
+        expr: up{job=~"mysql-(alpha|beta)"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "MariaDB exporter for tenant {{ $labels.tenant }} is down"
+          description: |
+            The MySQL exporter for tenant {{ $labels.tenant }} is unreachable.
+            This likely means the MariaDB instance is down or unresponsive.
+          runbook_url: "See RUNBOOK.md#database-down"
+
+      # ----------------------------------------------------------------
+      # ALERT 4: Database Health — High connection usage
+      # ----------------------------------------------------------------
+      - alert: MariaDBHighConnections
+        expr: |
+          mysql_global_status_threads_connected
+          / mysql_global_variables_max_connections * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "MariaDB {{ $labels.tenant }} connections above 80%"
+          description: |
+            Tenant {{ $labels.tenant }} MariaDB is using more than 80% of
+            its max_connections. Consider increasing the limit or investigating
+            connection leaks.
+          runbook_url: "See RUNBOOK.md#high-db-connections"
+
+      # ----------------------------------------------------------------
+      # ALERT 5: Container resource — High memory usage
+      # ----------------------------------------------------------------
+      - alert: ContainerHighMemory
+        expr: |
+          container_memory_usage_bytes{name=~"wp-.*|db-.*"}
+          / container_spec_memory_limit_bytes{name=~"wp-.*|db-.*"} * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "Container {{ $labels.name }} memory usage above 90%"
+          description: |
+            Container {{ $labels.name }} is consuming more than 90% of its
+            memory limit. Risk of OOM kill.
+          runbook_url: "See RUNBOOK.md#high-memory"

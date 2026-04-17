@@ -1,0 +1,174 @@
+# ==============================================================
+# WordPress Multitenancy Platform — Docker Compose
+# ==============================================================
+# Usage:
+#   docker compose up -d
+#   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+# ==============================================================
+
+services:
+  # =============================================
+  #  REVERSE PROXY
+  # =============================================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: wp-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "8080:8080"   # metrics/status endpoint
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - nginx_logs:/var/log/nginx
+    networks:
+      - frontend
+    depends_on:
+      wp-alpha:
+        condition: service_started
+      wp-beta:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/nginx-health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # =============================================
+  #  TENANT ALPHA — WordPress + Database
+  # =============================================
+  wp-alpha:
+    image: wordpress:6-php8.2-apache
+    container_name: wp-alpha
+    restart: unless-stopped
+    environment:
+      WORDPRESS_DB_HOST: db-alpha:3306
+      WORDPRESS_DB_NAME: ${ALPHA_DB_NAME:-wp_alpha}
+      WORDPRESS_DB_USER: ${ALPHA_DB_USER:-wp_alpha_user}
+      WORDPRESS_DB_PASSWORD: ${ALPHA_DB_PASSWORD:-alpha_db_change_me}
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_DEBUG', ${ALPHA_WP_DEBUG:-false});
+        define('DISALLOW_FILE_EDIT', true);
+        define('WP_AUTO_UPDATE_CORE', false);
+    volumes:
+      - wp_alpha_data:/var/www/html
+      - wp_alpha_uploads:/var/www/html/wp-content/uploads
+    networks:
+      - frontend
+      - backend-alpha
+    depends_on:
+      db-alpha:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/wp-admin/install.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  db-alpha:
+    image: mariadb:11.2
+    container_name: db-alpha
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${ALPHA_DB_ROOT_PASSWORD:-alpha_root_change_me}
+      MARIADB_DATABASE: ${ALPHA_DB_NAME:-wp_alpha}
+      MARIADB_USER: ${ALPHA_DB_USER:-wp_alpha_user}
+      MARIADB_PASSWORD: ${ALPHA_DB_PASSWORD:-alpha_db_change_me}
+    volumes:
+      - db_alpha_data:/var/lib/mysql
+    networks:
+      - backend-alpha
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # =============================================
+  #  TENANT BETA — WordPress + Database
+  # =============================================
+  wp-beta:
+    image: wordpress:6-php8.2-apache
+    container_name: wp-beta
+    restart: unless-stopped
+    environment:
+      WORDPRESS_DB_HOST: db-beta:3306
+      WORDPRESS_DB_NAME: ${BETA_DB_NAME:-wp_beta}
+      WORDPRESS_DB_USER: ${BETA_DB_USER:-wp_beta_user}
+      WORDPRESS_DB_PASSWORD: ${BETA_DB_PASSWORD:-beta_db_change_me}
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_DEBUG', ${BETA_WP_DEBUG:-false});
+        define('DISALLOW_FILE_EDIT', true);
+        define('WP_AUTO_UPDATE_CORE', false);
+    volumes:
+      - wp_beta_data:/var/www/html
+      - wp_beta_uploads:/var/www/html/wp-content/uploads
+    networks:
+      - frontend
+      - backend-beta
+    depends_on:
+      db-beta:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/wp-admin/install.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  db-beta:
+    image: mariadb:11.2
+    container_name: db-beta
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${BETA_DB_ROOT_PASSWORD:-beta_root_change_me}
+      MARIADB_DATABASE: ${BETA_DB_NAME:-wp_beta}
+      MARIADB_USER: ${BETA_DB_USER:-wp_beta_user}
+      MARIADB_PASSWORD: ${BETA_DB_PASSWORD:-beta_db_change_me}
+    volumes:
+      - db_beta_data:/var/lib/mysql
+    networks:
+      - backend-beta
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+# =============================================
+#  NETWORKS  — Isolated per tenant backend
+# =============================================
+networks:
+  frontend:
+    name: wp-frontend
+    driver: bridge
+  backend-alpha:
+    name: wp-backend-alpha
+    driver: bridge
+    internal: true       # no external access
+  backend-beta:
+    name: wp-backend-beta
+    driver: bridge
+    internal: true       # no external access
+
+# =============================================
+#  VOLUMES  — Persistent storage
+# =============================================
+volumes:
+  wp_alpha_data:
+    name: wp_alpha_data
+  wp_alpha_uploads:
+    name: wp_alpha_uploads
+  wp_beta_data:
+    name: wp_beta_data
+  wp_beta_uploads:
+    name: wp_beta_uploads
+  db_alpha_data:
+    name: db_alpha_data
+  db_beta_data:
+    name: db_beta_data
+  nginx_logs:
+    name: nginx_logs

@@ -1,0 +1,17 @@
+# ==============================================================
+# Grafana — Dashboard Provisioning
+# ==============================================================
+apiVersion: 1
+
+providers:
+  - name: 'WordPress Platform'
+    orgId: 1
+    folder: 'WordPress Platform'
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

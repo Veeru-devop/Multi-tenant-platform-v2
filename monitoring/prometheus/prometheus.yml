@@ -1,0 +1,51 @@
+# ==============================================================
+# Prometheus Configuration
+# ==============================================================
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+# ---- Alert Rules ----
+rule_files:
+  - /etc/prometheus/alert-rules.yml
+
+# ---- Scrape Targets ----
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # Container metrics via cAdvisor
+  - job_name: 'cadvisor'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'cadvisor'
+
+  # Nginx metrics
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+        labels:
+          service: 'nginx'
+
+  # Tenant Alpha — MariaDB metrics
+  - job_name: 'mysql-alpha'
+    static_configs:
+      - targets: ['mysqld-exporter-alpha:9104']
+        labels:
+          service: 'mariadb'
+          tenant: 'alpha'
+
+  # Tenant Beta — MariaDB metrics
+  - job_name: 'mysql-beta'
+    static_configs:
+      - targets: ['mysqld-exporter-beta:9104']
+        labels:
+          service: 'mariadb'
+          tenant: 'beta'

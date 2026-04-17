@@ -1,0 +1,41 @@
+# Environment & secrets
+.env
+*.env.local
+
+# Docker volumes (persisted data)
+volumes/
+
+# SSL certificates (generated locally)
+nginx/ssl/*.pem
+nginx/ssl/*.key
+nginx/ssl/*.crt
+
+# Backups
+backups/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# PHP dependencies
+vendor/
+node_modules/
+
+# WordPress uploads (tenant data)
+wp-content/uploads/
+
+# Monitoring data (persisted in Docker volumes)
+monitoring/prometheus/data/
+monitoring/grafana/data/
+monitoring/loki/data/
+
+# Build artifacts
+*.zip
+dist/
