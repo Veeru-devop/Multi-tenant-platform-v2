@@ -10,11 +10,10 @@ name: CD — Build & Deploy
 on:
   push:
     branches: [main]
-    paths:
-      - 'wp-content/**'
-  create:
     tags:
       - 'v*'
+    paths:
+      - 'wp-content/**'
 
 permissions:
   contents: write    # Required for creating releases
@@ -85,14 +84,14 @@ jobs:
           echo "✅ Built: ${PLUGIN_NAME}-${VERSION}.zip"
 
       - name: Upload Theme Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ env.THEME_NAME }}-${{ steps.version.outputs.version }}
           path: wp-content/themes/${{ env.THEME_NAME }}-${{ steps.version.outputs.version }}.zip
           retention-days: 30
 
       - name: Upload Plugin Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ env.PLUGIN_NAME }}-${{ steps.version.outputs.version }}
           path: wp-content/plugins/${{ env.PLUGIN_NAME }}-${{ steps.version.outputs.version }}.zip
@@ -108,7 +107,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           path: ./artifacts
 
@@ -117,7 +116,15 @@ jobs:
 
       - name: Start platform (WordPress only)
         run: |
-          docker compose up -d
+          if [ "$ACT" = "true" ]; then
+            echo "Patching docker-compose.yml for act Windows bug..."
+            sed -i 's|- ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro||g' docker-compose.yml
+            docker compose up -d
+            docker cp ./nginx/nginx.conf wp-nginx:/etc/nginx/nginx.conf
+            docker exec wp-nginx nginx -s reload
+          else
+            docker compose up -d
+          fi
           echo "Waiting for services to be healthy..."
           sleep 60
 
@@ -143,9 +150,8 @@ jobs:
           THEME_ZIP=$(find ./artifacts -name "*theme*.zip" | head -1)
           if [ -n "$THEME_ZIP" ]; then
             echo "Deploying theme: $THEME_ZIP → wp-alpha"
-            docker cp "$THEME_ZIP" wp-alpha:/tmp/theme.zip
-            docker exec wp-alpha bash -c \
-              "cd /var/www/html/wp-content/themes && unzip -o /tmp/theme.zip && rm /tmp/theme.zip"
+            unzip -q -o "$THEME_ZIP" -d ./extracted-theme
+            docker cp ./extracted-theme/${THEME_NAME} wp-alpha:/var/www/html/wp-content/themes/
             echo "✅ Theme deployed to Tenant Alpha"
           fi
 
@@ -153,9 +159,8 @@ jobs:
           PLUGIN_ZIP=$(find ./artifacts -name "*plugin*.zip" | head -1)
           if [ -n "$PLUGIN_ZIP" ]; then
             echo "Deploying plugin: $PLUGIN_ZIP → wp-alpha"
-            docker cp "$PLUGIN_ZIP" wp-alpha:/tmp/plugin.zip
-            docker exec wp-alpha bash -c \
-              "cd /var/www/html/wp-content/plugins && unzip -o /tmp/plugin.zip && rm /tmp/plugin.zip"
+            unzip -q -o "$PLUGIN_ZIP" -d ./extracted-plugin
+            docker cp ./extracted-plugin/${PLUGIN_NAME} wp-alpha:/var/www/html/wp-content/plugins/
             echo "✅ Plugin deployed to Tenant Alpha"
           fi
 
@@ -179,7 +184,7 @@ jobs:
     if: github.ref_type == 'tag'
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           path: ./artifacts
 
