@@ -1,51 +1,47 @@
 # CI/CD End-to-End Testing Commands
 
-This document contains the exact step-by-step terminal commands we used to test the entire CI/CD workflow sequentially on your local machine.
+This document contains the exact step-by-step terminal commands we used to test the entire automated CI/CD workflow natively on your local machine. 
 
-## 1. Commit Your Changes
-`act` requires files to be committed to Git to detect them. We updated the version in `style.css` and committed it.
+By default, the CD pipeline destroys the testing environment to clean up after itself when it finishes. To allow you to view the automated deployment visually in your browser, **the Cleanup job inside `cd.yml` has been deliberately disabled**.
 
+## 1. Wipe Active Workspaces
+Before letting the automation take over, ensure you don't have any native platforms running that could clash with the automation.
 ```powershell
-git add wp-content\themes\starter-theme\style.css
-git commit -m "Bump theme version to 4.0.0"
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml down -v
 ```
 
-## 2. Test the CI Pipeline Locally (Pull Request)
-This command triggers the `.github/workflows/ci.yml` pipeline to run the syntax checks, PHPCS formatting, and PHPStan security scans.
+## 2. Commit Your Changes
+`act` requires files to be committed to Git to detect them. Make your changes (like updating `style.css` to Version 5.0.0) and commit them:
+```powershell
+git add wp-content\themes\starter-theme\style.css
+git commit -m "Bump theme version to 5.0.0"
+```
 
+## 3. Automated CI Pipeline (Pull Request)
+This command triggers the `.github/workflows/ci.yml` pipeline to automatically run syntax checks, PHPCS formatting, and PHPStan security scans.
 ```powershell
 act pull_request -W .github/workflows/ci.yml
 ```
 
-## 3. Test the CD Pipeline Locally (Deployment)
-This command triggers `.github/workflows/cd.yml` to build the `.zip` artifacts and test the deployment. 
+## 4. Automated CD Deployment (Push to Main)
+This command triggers `.github/workflows/cd.yml`. The automation will:
+1. Build the new `.zip` artifact.
+2. Spin up the WordPress Docker platform automatically.
+3. Automatically deploy the new Version 5.0.0 artifact into the container.
+4. Pass all HTTP health checks.
+5. **Leave the platform running for you to view.**
 
-*Note: The `--artifact-server-path` flag is strictly required so `act` can store the `.zip` file between the Build step and the Deploy step.*
-
+*(Note: The `--artifact-server-path` is used so `act` has a local folder to store the zip artifacts it builds prior to deployment)*
 ```powershell
 act push -W .github/workflows/cd.yml --artifact-server-path ./tmp-artifacts
 ```
-*(At the end of this run, the CD pipeline automatically executes `docker compose down -v` to clean up the workspace, meaning your containers will be stopped.)*
 
-## 4. Manually View the Changes in WordPress
-Because the `act` CD pipeline destroyed the testing containers after verifying they worked, we use these commands to bring the actual "Production" cluster back online and inject the code to verify it visually in the browser.
+## 5. Verify the Automation Visually!
+Because we disabled the teardown step within the automation, the deployment is still live!
+Open your browser to `http://tenant-alpha.localhost/wp-admin`, navigate to **Appearance > Themes**, and you will immediately see your newly deployed **Version: 5.0.0** theme automatically applied by the pipeline.
 
-**Boot up the platform:**
-```powershell
-docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
-```
-
-**Inject the active theme manually to the running container:**
-```powershell
-docker cp ./wp-content/themes/starter-theme wp-alpha:/var/www/html/wp-content/themes/
-```
-
-**Verify:**
-Open your browser to `http://tenant-alpha.localhost/wp-admin`, navigate to **Appearance > Themes**, and you will see "Version: 4.0.0".
-
-## 5. Ultimate Teardown
-If you ever need to completely reset the environment and wipe all databases, volumes, and monitoring data:
-
+## 6. Ultimate Teardown (When you are finished)
+When you are completely done testing and reviewing your deployed changes, strictly reset the environment and wipe out all local databases and testing configurations:
 ```powershell
 docker compose -f docker-compose.yml -f docker-compose.monitoring.yml down -v
 ```

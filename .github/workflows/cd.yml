@@ -53,48 +53,33 @@ jobs:
           php-version: '8.2'
           tools: composer
 
-      - name: Build Theme
+      - name: Build Release Artifact
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          cd wp-content/themes/${{ env.THEME_NAME }}
-          composer install --no-dev --prefer-dist --no-progress
-          # Update version in style.css
-          sed -i "s/Version:.*/Version: ${VERSION}/" style.css
-          cd ..
+          echo "📦 Building full wp-content release: $VERSION"
+          
+          # Install composer dependencies for ALL themes/plugins if any
+          for composer_file in $(find wp-content -name "composer.json"); do
+             dir=$(dirname "$composer_file")
+             cd "$dir"
+             composer install --no-dev --prefer-dist --no-progress
+             cd "$GITHUB_WORKSPACE"
+          done
+          
           # Create zip excluding dev files
-          zip -r "${THEME_NAME}-${VERSION}.zip" "${{ env.THEME_NAME }}/" \
+          zip -r "wp-content-release-${VERSION}.zip" wp-content/ \
             -x "*/vendor/squizlabs/*" \
             -x "*/vendor/phpstan/*" \
             -x "*/.git*" \
             -x "*/composer.lock" \
             -x "*/phpstan.neon"
-          echo "✅ Built: ${THEME_NAME}-${VERSION}.zip"
+          echo "✅ Built: wp-content-release-${VERSION}.zip"
 
-      - name: Build Plugin
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          cd wp-content/plugins/${{ env.PLUGIN_NAME }}
-          composer install --no-dev --prefer-dist --no-progress
-          cd ..
-          zip -r "${PLUGIN_NAME}-${VERSION}.zip" "${{ env.PLUGIN_NAME }}/" \
-            -x "*/vendor/squizlabs/*" \
-            -x "*/vendor/phpstan/*" \
-            -x "*/.git*" \
-            -x "*/composer.lock"
-          echo "✅ Built: ${PLUGIN_NAME}-${VERSION}.zip"
-
-      - name: Upload Theme Artifact
+      - name: Upload Release Artifact
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ env.THEME_NAME }}-${{ steps.version.outputs.version }}
-          path: wp-content/themes/${{ env.THEME_NAME }}-${{ steps.version.outputs.version }}.zip
-          retention-days: 30
-
-      - name: Upload Plugin Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ env.PLUGIN_NAME }}-${{ steps.version.outputs.version }}
-          path: wp-content/plugins/${{ env.PLUGIN_NAME }}-${{ steps.version.outputs.version }}.zip
+          name: wp-content-release-${{ steps.version.outputs.version }}
+          path: wp-content-release-${{ steps.version.outputs.version }}.zip
           retention-days: 30
 
   # ---- Job 2: Simulate Deployment ----
@@ -146,22 +131,18 @@ jobs:
           VERSION="${{ needs.build.outputs.version }}"
           echo "📦 Deploying version: $VERSION"
 
-          # Deploy theme to Tenant Alpha
-          THEME_ZIP=$(find ./artifacts -name "*theme*.zip" | head -1)
-          if [ -n "$THEME_ZIP" ]; then
-            echo "Deploying theme: $THEME_ZIP → wp-alpha"
-            unzip -q -o "$THEME_ZIP" -d ./extracted-theme
-            docker cp ./extracted-theme/${THEME_NAME} wp-alpha:/var/www/html/wp-content/themes/
-            echo "✅ Theme deployed to Tenant Alpha"
-          fi
-
-          # Deploy plugin to Tenant Alpha
-          PLUGIN_ZIP=$(find ./artifacts -name "*plugin*.zip" | head -1)
-          if [ -n "$PLUGIN_ZIP" ]; then
-            echo "Deploying plugin: $PLUGIN_ZIP → wp-alpha"
-            unzip -q -o "$PLUGIN_ZIP" -d ./extracted-plugin
-            docker cp ./extracted-plugin/${PLUGIN_NAME} wp-alpha:/var/www/html/wp-content/plugins/
-            echo "✅ Plugin deployed to Tenant Alpha"
+          # Deploy full wp-content payload
+          RELEASE_ZIP=$(find ./artifacts -name "wp-content-release*.zip" | head -1)
+          if [ -n "$RELEASE_ZIP" ]; then
+            echo "Deploying release: $RELEASE_ZIP → all tenants"
+            unzip -q -o "$RELEASE_ZIP" -d ./extracted-release
+            
+            # Use docker cp to merge extracted wp-content into the containers
+            # Copying extracted wp-content directory merges it without deleting existing non-tracked files (like uploads/)
+            docker cp ./extracted-release/wp-content wp-alpha:/var/www/html/
+            docker cp ./extracted-release/wp-content wp-beta:/var/www/html/
+            
+            echo "✅ Release deployed to Tenant Alpha & Beta"
           fi
 
       - name: Post-deploy verification
@@ -174,7 +155,9 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: docker compose down -v
+        run: |
+          echo "Cleanup disabled so you can view the deployment in your browser!"
+          # docker compose down -v
 
   # ---- Job 3: Create GitHub Release (on tag only) ----
   release:
@@ -197,8 +180,7 @@ jobs:
             ## WordPress Platform Release ${{ github.ref_name }}
 
             ### Artifacts
-            - 🎨 Theme: `${{ env.THEME_NAME }}-${{ needs.build.outputs.version }}.zip`
-            - 🔌 Plugin: `${{ env.PLUGIN_NAME }}-${{ needs.build.outputs.version }}.zip`
+            - 📁 Core/Content Payload: `wp-content-release-${{ needs.build.outputs.version }}.zip`
 
             ### Deployment
             Download the artifacts and deploy via:
