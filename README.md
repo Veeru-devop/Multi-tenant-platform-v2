@@ -148,8 +148,7 @@ winget install --id GnuWin32.Make -e --accept-package-agreements --accept-source
 ### 1. Clone the repository
 
 ```powershell
-git clone https://github.com/your-org/wp-multitenant-platform.git
-cd wp-multitenant-platform
+git clone https://github.com/Veeru-devop/Multi-tenant-platform-v2
 ```
 
 ### 2. Run the Windows setup script (single command)
