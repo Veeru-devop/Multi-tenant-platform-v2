@@ -41,8 +41,8 @@ jobs:
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
             VERSION="${{ github.ref_name }}"
           else
-            # Use short SHA for non-tag builds
-            VERSION="dev-$(git rev-parse --short HEAD)"
+            # Use sequential GitHub run number for non-tag builds
+            VERSION="build-${{ github.run_number }}"
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "📦 Building version: $VERSION"
@@ -132,7 +132,7 @@ jobs:
           echo "📦 Deploying version: $VERSION"
 
           # Deploy full wp-content payload
-          RELEASE_ZIP=$(find ./artifacts -name "wp-content-release*.zip" | head -1)
+          RELEASE_ZIP=$(find ./artifacts -name "wp-content-release-${VERSION}.zip" | head -1)
           if [ -n "$RELEASE_ZIP" ]; then
             echo "Deploying release: $RELEASE_ZIP → all tenants"
             unzip -q -o "$RELEASE_ZIP" -d ./extracted-release
